@@ -1,22 +1,20 @@
 # Local DDNS Service
 
-A lightweight Dynamic DNS service that allows you to access devices on your local network using a consistent URL, even when their IP addresses change. The service supports token-based authentication and can be configured via environment variables or a config file.
+A lightweight, in-memory Dynamic DNS service that allows you to access devices on your local network using a consistent URL. The service is stateless, with tokens and IPs stored only in memory and loaded from environment variables at startup.
 
 ## Features
 
-- Token-based authentication via environment variables or config file
-- Automatic IP registration and updates
-- Lightweight FastAPI backend
-- Docker container support
-- GitHub Actions CI/CD pipeline
-- Built-in logging for IP changes
+- **In-memory storage** - No persistent storage required
+- **Simple token-based authentication** - Configure via environment variables
+- **Automatic IP registration** - Update IPs via API
+- **Lightweight FastAPI backend** - High performance with minimal overhead
+- **Docker container support** - Easy deployment
+- **Built-in logging** - Track IP changes in real-time
 
 ## Prerequisites
 
 - Python 3.7+
 - Docker (optional)
-- aiofiles
-- PyYAML
 - FastAPI
 - uvicorn (ASGI server)
 
@@ -37,6 +35,9 @@ A lightweight Dynamic DNS service that allows you to access devices on your loca
 
 3. Start the server:
    ```bash
+   # Set tokens as environment variables
+   export TOKEN1=your-secure-token-1
+   export TOKEN2=your-secure-token-2
    uvicorn main:app --host 0.0.0.0 --port 8000
    ```
 
@@ -54,28 +55,23 @@ docker run -d --name ddns -p 8000:8000 \
 
 ## Configuration
 
-### Option 1: Environment Variables (Recommended)
-Set tokens as environment variables with prefix `TOKEN` (e.g., `TOKEN1`, `TOKEN2`):
+### Environment Variables
+
+Set tokens as environment variables with prefix `TOKEN` (e.g., `TOKEN1`, `TOKEN2`). Each token will be initialized with a default IP of `127.0.0.1` which can be updated via the API.
 
 ```bash
+# Example for multiple tokens
 export TOKEN1=your-secure-token-1
 export TOKEN2=your-secure-token-2
 ```
 
-### Option 2: Config File
-If no tokens are found in environment variables, the service will use `config.yaml`:
-
-```yaml
-tokens:
-  - token: "your-secure-token-1"
-    ip: "127.0.0.1"  # Default IP if not specified
-  - token: "your-secure-token-2"
-    ip: "192.168.1.100"
-```
+> **Note:** The service is stateless and loads tokens only at startup. Changes to environment variables require a restart.
 
 ## API Endpoints
 
 ### Register/Update IP
+
+Update the IP address for a specific token.
 
 ```
 GET /register/{token}/{ip}
@@ -96,6 +92,8 @@ Response:
 
 ### Get Registered IP
 
+Redirects to the registered IP for the given token.
+
 ```
 GET /ip/{token}
 ```
@@ -111,9 +109,10 @@ Response:
 
 ## Logging
 
-The service logs all IP changes and registrations:
+The service logs all IP changes and important events:
 ```
-2025-12-09 22:44:15,123 - __main__ - INFO - Updated IP for token your-token: 192.168.1.1 -> 192.168.1.2
+2025-12-09 23:30:45,678 - __main__ - INFO - Loaded 2 tokens from environment variables
+2025-12-09 23:31:15,123 - __main__ - INFO - Updated IP for token your-token: 127.0.0.1 -> 192.168.1.100
 ```
 
 ## Docker Compose Example
@@ -132,12 +131,20 @@ services:
     restart: unless-stopped
 ```
 
+## Important Notes
+
+- **Stateless by Design**: All data is stored in memory and will be lost on service restart
+- **Environment Variables**: Tokens must be provided at startup via environment variables
+- **No Persistence**: IP changes made via the API are not persisted across restarts
+- **Development Use**: Primarily designed for development and local network use
+
 ## Security Considerations
 
-- Always use HTTPS in production
-- Keep your tokens secure and never commit them to version control
-- Regularly rotate your tokens
-- Use a reverse proxy with rate limiting in production
+- **HTTPS**: Always use HTTPS in production environments
+- **Token Security**: Keep tokens secure and never commit them to version control
+- **Network Security**: Run behind a reverse proxy with authentication in production
+- **Rate Limiting**: Implement rate limiting at the reverse proxy level
+- **Regular Rotation**: Regularly rotate your tokens
 
 ## License
 
