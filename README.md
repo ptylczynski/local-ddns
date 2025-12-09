@@ -1,24 +1,28 @@
 # Local DDNS Service
 
-A lightweight Dynamic DNS service that allows you to access devices on your local network using a consistent URL, even when their IP addresses change.
+A lightweight Dynamic DNS service that allows you to access devices on your local network using a consistent URL, even when their IP addresses change. The service supports token-based authentication and can be configured via environment variables or a config file.
 
 ## Features
 
-- Simple token-based authentication
+- Token-based authentication via environment variables or config file
 - Automatic IP registration and updates
 - Lightweight FastAPI backend
 - Docker container support
 - GitHub Actions CI/CD pipeline
+- Built-in logging for IP changes
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.7+
 - Docker (optional)
-- GitHub account (for container registry)
+- aiofiles
+- PyYAML
+- FastAPI
+- uvicorn (ASGI server)
 
 ## Installation
 
-### Local Development
+### Using pip
 
 1. Clone the repository:
    ```bash
@@ -26,42 +30,50 @@ A lightweight Dynamic DNS service that allows you to access devices on your loca
    cd local-ddns
    ```
 
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install dependencies:
+2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-4. Start the development server:
+3. Start the server:
    ```bash
-   uvicorn main:app --reload
+   uvicorn main:app --host 0.0.0.0 --port 8000
    ```
 
-### Docker
+### Using Docker
 
 Build and run using Docker:
 
 ```bash
 docker build -t local-ddns .
-docker run -d --name ddns -p 8000:8000 -v $(pwd)/config.yaml:/app/config.yaml local-ddns
+docker run -d --name ddns -p 8000:8000 \
+  -e TOKEN1=your-secure-token-1 \
+  -e TOKEN2=your-secure-token-2 \
+  local-ddns
 ```
 
 ## Configuration
 
-1. The service will automatically create a `config.yaml` file with an empty tokens list if it doesn't exist.
-2. Add tokens to the `config.yaml` file:
-   ```yaml
-   tokens:
-     - token: "your-secure-token-here"
-       ip: ""  # Will be updated automatically
-   ```
+### Option 1: Environment Variables (Recommended)
+Set tokens as environment variables with prefix `TOKEN` (e.g., `TOKEN1`, `TOKEN2`):
 
-## Usage
+```bash
+export TOKEN1=your-secure-token-1
+export TOKEN2=your-secure-token-2
+```
+
+### Option 2: Config File
+If no tokens are found in environment variables, the service will use `config.yaml`:
+
+```yaml
+tokens:
+  - token: "your-secure-token-1"
+    ip: "127.0.0.1"  # Default IP if not specified
+  - token: "your-secure-token-2"
+    ip: "192.168.1.100"
+```
+
+## API Endpoints
 
 ### Register/Update IP
 
@@ -71,7 +83,15 @@ GET /register/{token}/{ip}
 
 Example:
 ```bash
-curl "http://localhost:8000/register/your-secure-token-here/192.168.1.100"
+curl "http://localhost:8000/register/your-secure-token-1/192.168.1.100"
+```
+
+Response:
+```json
+{
+  "token": "your-secure-token-1",
+  "ip": "192.168.1.100"
+}
 ```
 
 ### Get Registered IP
@@ -82,26 +102,42 @@ GET /ip/{token}
 
 Example:
 ```bash
-curl "http://localhost:8000/ip/your-secure-token-here"
+curl -v "http://localhost:8000/ip/your-secure-token-1"
 ```
 
-## CI/CD with GitHub Actions
+Response:
+- On success: HTTP 302 redirect to `http://{registered-ip}/`
+- On error: HTTP 400 with error message
 
-This repository includes a GitHub Actions workflow that automatically builds and pushes Docker images to GitHub Container Registry (GHCR) on every push to the `main` branch.
+## Logging
 
-### Accessing the Container Image
-
-Images are available at:
+The service logs all IP changes and registrations:
 ```
-ghcr.io/your-username/local-ddns:latest
+2025-12-09 22:44:15,123 - __main__ - INFO - Updated IP for token your-token: 192.168.1.1 -> 192.168.1.2
+```
+
+## Docker Compose Example
+
+```yaml
+version: '3.8'
+
+services:
+  ddns:
+    image: local-ddns:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - TOKEN1=your-secure-token-1
+      - TOKEN2=your-secure-token-2
+    restart: unless-stopped
 ```
 
 ## Security Considerations
 
-- Use HTTPS in production
+- Always use HTTPS in production
 - Keep your tokens secure and never commit them to version control
-- Consider rate limiting for production use
-- Use a reverse proxy (like Nginx) for additional security features
+- Regularly rotate your tokens
+- Use a reverse proxy with rate limiting in production
 
 ## License
 
