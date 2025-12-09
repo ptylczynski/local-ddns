@@ -1,11 +1,10 @@
-name: Build and Push Docker Image
+name: Docker Image CI
 
 on:
   push:
-    branches: [ "main" ]
-
-# This job uses the GitHub docker-publish action to build and publish the Docker image.
-# See: https://github.com/marketplace/actions/docker-build-push
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
 
 jobs:
   build-and-push:
