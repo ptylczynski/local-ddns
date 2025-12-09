@@ -1,9 +1,17 @@
 import os
 import ipaddress
+import logging
 import aiofiles
 from fastapi import FastAPI, HTTPException
 import yaml
 from starlette.responses import RedirectResponse
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Constants
 CONFIG_FILE = "config.yaml"
@@ -13,14 +21,38 @@ config = {}
 
 
 async def load_config():
+    # Initialize with default config
+    default_config = {"tokens": []}
+    
+    # Load tokens from environment variables (TOKEN1, TOKEN2, etc.)
+    tokens_from_env = []
+    for key, value in os.environ.items():
+        if key.startswith('TOKEN'):
+            tokens_from_env.append({
+                "token": value,
+                "ip": "127.0.0.1"
+            })
+    
+    if tokens_from_env:
+        # Use tokens from environment variables
+        default_config["tokens"] = tokens_from_env
+    elif os.path.isfile(CONFIG_FILE):
+        # Fall back to config file if no tokens in environment
+        async with aiofiles.open(CONFIG_FILE, "r") as f:
+            content = await f.read()
+            config = yaml.safe_load(content)
+            # Ensure all tokens have an IP set to 127.0.0.1 by default
+            for token in config.get("tokens", []):
+                if "ip" not in token:
+                    token["ip"] = "127.0.0.1"
+            return config
+    
+    # Save default config if no config file exists
     if not os.path.isfile(CONFIG_FILE):
-        default_config = {"tokens": []}
         async with aiofiles.open(CONFIG_FILE, "w") as f:
             await f.write(yaml.safe_dump(default_config))
-
-    async with aiofiles.open(CONFIG_FILE, "r") as f:
-        content = await f.read()
-        return yaml.safe_load(content)
+    
+    return default_config
 
 
 @app.on_event("startup")
@@ -76,13 +108,13 @@ async def register(token: str, ip: str = None):
         raise HTTPException(status_code=400, detail="Invalid token")
     if ip is None:
         raise HTTPException(status_code=400, detail="Missing IP")
-    
     _validate_ip_address(ip)
-    
+    # Check if token exists and update IP
     for t in config["tokens"]:
         if t["token"] == token:
+            old_ip = t.get("ip", "not set")
             t["ip"] = ip.strip()
             await save_config()
+            logger.info(f"Updated IP for token {token}: {old_ip} -> {ip.strip()}")
             return {"token": token, "ip": t.get("ip")}
-
     return {"response": "registered"}
