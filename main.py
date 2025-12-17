@@ -104,7 +104,7 @@ def _validate_ip_address(ip_str: str) -> None:
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid IP address format")
 
-@app.post("/register/{token}")
+@app.put("/register/{token}")
 async def register(token: str, request: Request):
     """Update IP for a token in memory.
     
